@@ -11,7 +11,7 @@ const WebSocketProvider = ({ children }) => {
   const [players, setPlayers] = useState([]);
 
   useEffect(() => {
-    const socket = new WebSocket('ws://localhost:8080'); // Local WebSocket server
+    const socket = new WebSocket('https://germanbridge.onrender.com');
     socket.onopen = () => console.log('WebSocket connected');
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
