@@ -1,17 +1,29 @@
 const WebSocket = require('ws');
+const http = require('http');
 
-const wss = new WebSocket.Server({ port: 8080 });
-const clients = new Map(); // Store client usernames and WebSocket connections
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('WebSocket server running');
+});
 
-wss.on('connection', (ws) => {
-  console.log('Client connected');
+const wss = new WebSocket.Server({ server });
+const clients = new Map();
+
+wss.on('connection', (ws, req) => {
+  console.log('Client connected from:', req.socket.remoteAddress);
+  console.log('Request headers:', req.headers);
 
   ws.on('message', (message) => {
-    const data = JSON.parse(message);
+    let data;
+    try {
+      data = JSON.parse(message.toString());
+    } catch (error) {
+      console.error('Invalid JSON received:', error);
+      return;
+    }
 
     if (data.type === 'join') {
       clients.set(ws, data.username);
-      // Broadcast updated player list
       const players = Array.from(clients.values());
       wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
@@ -19,7 +31,6 @@ wss.on('connection', (ws) => {
         }
       });
     } else if (data.type === 'message') {
-      // Broadcast chat message
       wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(
@@ -36,7 +47,6 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     clients.delete(ws);
-    // Broadcast updated player list
     const players = Array.from(clients.values());
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
@@ -45,6 +55,24 @@ wss.on('connection', (ws) => {
     });
     console.log('Client disconnected');
   });
+
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+  });
 });
 
-console.log('WebSocket server running on ws://localhost:8080');
+wss.on('error', (error) => {
+  console.error('WebSocket server error:', error);
+});
+
+server.on('upgrade', (req, socket, head) => {
+  console.log('Upgrade request received:', req.headers);
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit('connection', ws, req);
+  });
+});
+
+const port = process.env.PORT || 8080;
+server.listen(port, '0.0.0.0', () => {
+  console.log(`WebSocket server running on port ${port}`);
+});
